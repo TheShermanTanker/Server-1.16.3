@@ -1,0 +1,66 @@
+package org.apache.logging.log4j.core.appender.rolling.action;
+
+import java.util.Arrays;
+import java.io.IOException;
+import java.util.List;
+
+public class CompositeAction extends AbstractAction {
+    private final Action[] actions;
+    private final boolean stopOnError;
+    
+    public CompositeAction(final List<Action> actions, final boolean stopOnError) {
+        actions.toArray((Object[])(this.actions = new Action[actions.size()]));
+        this.stopOnError = stopOnError;
+    }
+    
+    @Override
+    public void run() {
+        try {
+            this.execute();
+        }
+        catch (IOException ex) {
+            CompositeAction.LOGGER.warn("Exception during file rollover.", (Throwable)ex);
+        }
+    }
+    
+    @Override
+    public boolean execute() throws IOException {
+        if (this.stopOnError) {
+            for (final Action action : this.actions) {
+                if (!action.execute()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        boolean status = true;
+        IOException exception = null;
+        for (final Action action2 : this.actions) {
+            try {
+                status &= action2.execute();
+            }
+            catch (IOException ex) {
+                status = false;
+                if (exception == null) {
+                    exception = ex;
+                }
+            }
+        }
+        if (exception != null) {
+            throw exception;
+        }
+        return status;
+    }
+    
+    public String toString() {
+        return CompositeAction.class.getSimpleName() + Arrays.toString((Object[])this.actions);
+    }
+    
+    public Action[] getActions() {
+        return this.actions;
+    }
+    
+    public boolean isStopOnError() {
+        return this.stopOnError;
+    }
+}
